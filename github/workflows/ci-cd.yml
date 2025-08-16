@@ -1,30 +1,60 @@
 name: CI/CD Node.js Docker
 
+# Disparador del workflow: se ejecuta con cada 'push' a la rama 'main'.
 on:
   push:
     branches:
       - main
 
+# Un solo job para construir, probar y desplegar.
 jobs:
-  build-and-push:
+  build-test-deploy:
+    # Se ejecuta en una máquina virtual de Ubuntu.
     runs-on: ubuntu-latest
 
+    # Pasos del job. Se ejecutan en orden.
     steps:
+      # Paso 1: Descarga el código de tu repositorio.
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Paso 2: Configura el entorno de Node.js.
+      # Esto es necesario para los comandos de 'npm'.
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Puedes cambiar la versión según tu proyecto.
+
+      # Paso 3: Instala las dependencias del proyecto.
+      - name: Install dependencies
+        run: npm install
+
+      # Paso 4: Ejecuta las pruebas unitarias.
+      # Si las pruebas fallan, el workflow se detiene.
+      - name: Run unit tests
+        run: npm test
+
+      # Paso 5: Configura Docker Buildx para un 'build' eficiente.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # Paso 6: Inicia sesión en Docker Hub con tus secretos.
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      # Paso 7: Construye la imagen de Docker y la sube.
+      # 'push: true' es lo que sube la imagen al Docker Hub.
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: justindff/practica-devops:latest
+
+      # Paso 8: Despliega la aplicación en Render usando el webhook.
+      - name: Deploy to Render
+        # Utiliza 'curl' para enviar una solicitud al Deploy Hook de Render.
+        run: curl ${{ secrets.RENDER_DEPLOY_WEBHOOK }}
